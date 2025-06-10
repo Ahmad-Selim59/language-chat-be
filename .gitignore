@@ -1,0 +1,32 @@
+# Python general
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Byte-compiled / optimized / DLL files
+*.pyc
+*.pyo
+*.pyd
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Misc
+.env
+.env.*
