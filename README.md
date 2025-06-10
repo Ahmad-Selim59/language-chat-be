@@ -7,3 +7,4 @@ env vars:
     LLM_MODEL_NAME 
 
 Poetry being used
+poetry run uvicorn src.main:app --reload
