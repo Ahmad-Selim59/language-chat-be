@@ -1,14 +1,12 @@
-[project]
+[tool.poetry]
 name = "chatbot-back-end"
 version = "0.1.0"
 description = ""
-authors = [
-    {name = "Your Name",email = "you@example.com"}
-]
+authors = ["Ahmad Selim ahmad22selim@gmail.com"]
 readme = "README.md"
-requires-python = ">=3.11"
 
 [tool.poetry.dependencies]
+python = ">=3.11"
 fastapi = "0.115.12"
 uvicorn = { version = "0.34.2", extras = ["standard"] }
 litellm = "1.67.5"
