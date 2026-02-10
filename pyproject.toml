@@ -2,7 +2,7 @@
 name = "chatbot-back-end"
 version = "0.1.0"
 description = ""
-authors = ["Ahmad Selim ahmad22selim@gmail.com"]
+authors = ["Ahmad Selim <ahmad22selim@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
