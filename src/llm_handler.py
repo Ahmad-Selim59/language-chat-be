@@ -33,16 +33,15 @@ def get_bedrock_response(
     Returns:
         The complete response from the model
     """
-
-    # Replace template variables with settings
-    SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{{LANGUAGE}}", settings.get("targetLanguage", "Spanish"))
-    SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{{NATIVE_LANGUAGE}}", settings.get("nativeLanguage", "English"))
-    SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{{SCRIPT_PREFERENCE}}", settings.get("scriptPreference", "target"))
-    SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{{FORMALITY_LEVEL}}", settings.get("formality", "casual"))
+    # Create a customized copy of the system prompt with settings
+    system_prompt = SYSTEM_PROMPT.replace("{{LANGUAGE}}", settings.get("targetLanguage", "Spanish"))
+    system_prompt = system_prompt.replace("{{NATIVE_LANGUAGE}}", settings.get("nativeLanguage", "English"))
+    system_prompt = system_prompt.replace("{{SCRIPT_PREFERENCE}}", settings.get("scriptPreference", "target"))
+    system_prompt = system_prompt.replace("{{FORMALITY_LEVEL}}", settings.get("formality", "casual"))
 
     # LiteLLM automatically prepends "bedrock/" to the model name
     messages = []
-    messages.append({"role": "system", "content": SYSTEM_PROMPT})
+    messages.append({"role": "system", "content": system_prompt})
 
     if previous_chat_history:
         for element in previous_chat_history:
