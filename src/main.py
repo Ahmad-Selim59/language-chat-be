@@ -28,10 +28,18 @@ app.add_middleware(
 )
 
 
+class Settings(BaseModel):
+    targetLanguage: str
+    nativeLanguage: str
+    scriptPreference: str
+    formality: str
+
+
 class ChatRequest(BaseModel):
     session_id: str
     user_id: str
     user_message: str
+    settings: Settings
 
 
 class TitleUpdate(BaseModel):
@@ -50,24 +58,33 @@ async def send_message(req: ChatRequest) -> dict:
     clean_session_id = req.session_id.strip('"')
     clean_user_message = req.user_message.strip('"')
 
-    if db_rate_limit_check(clean_user_id):
-        return "user, used system today already"
+    # if db_rate_limit_check(clean_user_id):
+    #     return "user, used system today already"
 
     previous_chat_history = await get_chat_history_from_db(
         clean_user_id, clean_session_id
     )
+
+    settings_dict = {
+        "targetLanguage": req.settings.targetLanguage,
+        "nativeLanguage": req.settings.nativeLanguage,
+        "scriptPreference": req.settings.scriptPreference,
+        "formality": req.settings.formality,
+    }
 
     if previous_chat_history:
         llm_response = get_bedrock_response(
             clean_user_message,
             LLM_MODEL_NAME,
             previous_chat_history,
+            settings_dict,
         )
     else:
         llm_response = get_bedrock_response(
             clean_user_message,
             LLM_MODEL_NAME,
             previous_chat_history,
+            settings_dict,
         )
 
     await store_chat_in_db(

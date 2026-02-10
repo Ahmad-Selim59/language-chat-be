@@ -4,13 +4,19 @@ from openai import OpenAIError
 from pathlib import Path
 
 project_root = Path(__file__).resolve().parent.parent
-test_txt_path = project_root / "src" / "system_prompts" / "test_prompt" / "test.txt"
+LANGUAGE_BUDDY_PROMPT_PATH = project_root / "src" / "system_prompts" / "language_buddy" / "language_buddy.txt"
 
+try:
+    with open(LANGUAGE_BUDDY_PROMPT_PATH, "r", encoding="utf-8") as f:
+        SYSTEM_PROMPT = f.read()
+except FileNotFoundError:
+    print(f"File not found: {LANGUAGE_BUDDY_PROMPT_PATH}")
 
 def get_bedrock_response(
     prompt: str,
     model: str,
     previous_chat_history: list,
+    settings: dict,
     temperature: float = 1,
     max_tokens: int = 500,
 ) -> dict:
@@ -20,21 +26,23 @@ def get_bedrock_response(
     Args:
         prompt: The text prompt to send to the model
         model: The Bedrock model identifier (anthropic.claude-3-sonnet-20240229, amazon.titan-text-express-v1, etc.)
+        settings: Dictionary with targetLanguage, nativeLanguage, scriptPreference, formality
         temperature: Controls randomness (0.0 to 1.0)
         max_tokens: Maximum number of tokens to generate
 
     Returns:
         The complete response from the model
     """
-    try:
-        with open(test_txt_path, "r", encoding="utf-8") as f:
-            system_prompt = f.read()
-    except FileNotFoundError:
-        print(f"File not found: {test_txt_path}")
+
+    # Replace template variables with settings
+    SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{{LANGUAGE}}", settings.get("targetLanguage", "Spanish"))
+    SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{{NATIVE_LANGUAGE}}", settings.get("nativeLanguage", "English"))
+    SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{{SCRIPT_PREFERENCE}}", settings.get("scriptPreference", "target"))
+    SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{{FORMALITY_LEVEL}}", settings.get("formality", "casual"))
 
     # LiteLLM automatically prepends "bedrock/" to the model name
     messages = []
-    messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "system", "content": SYSTEM_PROMPT})
 
     if previous_chat_history:
         for element in previous_chat_history:
