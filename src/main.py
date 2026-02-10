@@ -21,6 +21,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
+        "https://language-chat-buddy-fe.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
