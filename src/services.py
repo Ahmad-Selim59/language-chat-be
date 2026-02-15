@@ -50,7 +50,7 @@ async def get_chat_history_from_db(user_id: str, session_id: str) -> dict:
 
 async def get_sessions_from_db(user_id: str) -> dict:
     cursor = CHAT_HISTORY_DB.find({"user_id": user_id}, {"_id": 1, "title": 1}).sort(
-        "_id", -1
+        "updated_at", -1
     )
     sessions = []
     async for doc in cursor:
