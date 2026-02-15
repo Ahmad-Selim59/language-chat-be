@@ -34,6 +34,8 @@ class Settings(BaseModel):
     nativeLanguage: str
     scriptPreference: str
     formality: str
+    gender: str
+    dialect: str
 
 
 class ChatRequest(BaseModel):
@@ -71,6 +73,8 @@ async def send_message(req: ChatRequest) -> dict:
         "nativeLanguage": req.settings.nativeLanguage,
         "scriptPreference": req.settings.scriptPreference,
         "formality": req.settings.formality,
+        "gender": req.settings.gender,
+        "dialect": req.settings.dialect,
     }
 
     if previous_chat_history:

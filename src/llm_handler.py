@@ -38,7 +38,9 @@ def get_bedrock_response(
     system_prompt = system_prompt.replace("{{NATIVE_LANGUAGE}}", settings.get("nativeLanguage", "English"))
     system_prompt = system_prompt.replace("{{SCRIPT_PREFERENCE}}", settings.get("scriptPreference", "target"))
     system_prompt = system_prompt.replace("{{FORMALITY_LEVEL}}", settings.get("formality", "casual"))
-
+    system_prompt = system_prompt.replace("{{GENDER}}", settings.get("gender", "male"))
+    system_prompt = system_prompt.replace("{{DIALECT}}", settings.get("dialect", "NA"))
+    
     # LiteLLM automatically prepends "bedrock/" to the model name
     messages = []
     messages.append({"role": "system", "content": system_prompt})
