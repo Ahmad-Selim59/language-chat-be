@@ -10,6 +10,12 @@ DATABASE = MONGO_CLIENT["chat_bot"]
 CHAT_HISTORY_DB = DATABASE["chat_history"]
 MEMORIES_DB = DATABASE["user_memories"]
 
+def clean_id(id_str: str) -> str:
+    """Consistently strip quotes and whitespace from IDs."""
+    if not id_str:
+        return id_str
+    return id_str.strip().strip('"').strip("'")
+
 
 async def store_chat_in_db(
     user_id: str, session_id: str, user_message: str, llm_response: str
@@ -41,7 +47,7 @@ def db_rate_limit_check(user_id: str) -> bool:
     return False
 
 
-async def get_chat_history_from_db(user_id: str, session_id: str) -> dict:
+async def get_chat_history_from_db(user_id: str, session_id: str) -> list:
     doc = await CHAT_HISTORY_DB.find_one({"_id": session_id, "user_id": user_id})
     if doc and "messages" in doc:
         return doc["messages"]
@@ -75,3 +81,23 @@ async def delete_session_from_db(session_id):
     result = await CHAT_HISTORY_DB.delete_one({"_id": session_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Session not found")
+
+async def set_chat_name_in_db(session_id, chat_name):
+    session_id = clean_id(session_id)
+    # Only update if the title is missing or is the default "Untitled Session"
+    # This prevents the background LLM task from overwriting a manual user update
+    result = await CHAT_HISTORY_DB.update_one(
+        {
+            "_id": session_id, 
+            "$or": [
+                {"title": {"$exists": False}},
+                {"title": "Untitled Session"}
+            ]
+        }, 
+        {"$set": {"title": chat_name}}
+    )
+    
+    if result.matched_count > 0:
+        print(f"\n\nChat name suggested and set: {session_id} -> {chat_name}")
+    else:
+        print(f"\n\nChat name suggestion skipped (title already exists): {session_id}")

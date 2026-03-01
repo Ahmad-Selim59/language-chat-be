@@ -1,10 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Body, Query, BackgroundTasks
 from pydantic import BaseModel
-from fastapi import Body
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import Query
 
-from src.llm_handler import get_bedrock_response
+from src.llm_handler import get_bedrock_response, get_chat_name_suggestion
 from src.config.env_var import LLM_MODEL_NAME
 from src.services import (
     store_chat_in_db,
@@ -13,6 +11,8 @@ from src.services import (
     get_sessions_from_db,
     update_session_title_in_db,
     delete_session_from_db,
+    set_chat_name_in_db,
+    clean_id,
 )
 
 app = FastAPI()
@@ -55,11 +55,20 @@ async def read_root():
     pass
 
 
+async def suggest_and_set_chat_name(session_id: str, user_message: str):
+    """Background task to suggest and set a chat name."""
+    chat_name_suggestion = await get_chat_name_suggestion(
+        user_message,
+        LLM_MODEL_NAME,
+    )
+    await set_chat_name_in_db(session_id, chat_name_suggestion)
+
+
 @app.post("/chat")
-async def send_message(req: ChatRequest) -> dict:
-    clean_user_id = req.user_id.strip('"')
-    clean_session_id = req.session_id.strip('"')
-    clean_user_message = req.user_message.strip('"')
+async def send_message(req: ChatRequest, background_tasks: BackgroundTasks) -> dict:
+    clean_user_id = clean_id(req.user_id)
+    clean_session_id = clean_id(req.session_id)
+    clean_user_message = req.user_message.strip()
 
     # if db_rate_limit_check(clean_user_id):
     #     return "user, used system today already"
@@ -77,15 +86,7 @@ async def send_message(req: ChatRequest) -> dict:
         "dialect": req.settings.dialect,
     }
 
-    if previous_chat_history:
-        llm_response = get_bedrock_response(
-            clean_user_message,
-            LLM_MODEL_NAME,
-            previous_chat_history,
-            settings_dict,
-        )
-    else:
-        llm_response = get_bedrock_response(
+    llm_response = await get_bedrock_response(
             clean_user_message,
             LLM_MODEL_NAME,
             previous_chat_history,
@@ -96,25 +97,33 @@ async def send_message(req: ChatRequest) -> dict:
         clean_user_id, clean_session_id, clean_user_message, llm_response
     )
 
+    # Suggest a name only for the first message in the background
+    if not previous_chat_history:
+        background_tasks.add_task(
+            suggest_and_set_chat_name, 
+            clean_session_id, 
+            clean_user_message
+        )
+
     return {"llm_response": llm_response}
 
 
 @app.get("/chat")
 async def get_chat_history(session_id: str, user_id: str):
-    return await get_chat_history_from_db(user_id, session_id)
+    return await get_chat_history_from_db(clean_id(user_id), clean_id(session_id))
 
 
 @app.get("/sessions")
 async def retrieve_all_sessions(user_id: str):
-    sessions = await get_sessions_from_db(user_id)
+    sessions = await get_sessions_from_db(clean_id(user_id))
     return sessions
 
 
 @app.delete("/chat")
 async def delete_chat(session_id: str = Query(...)):
-    await delete_session_from_db(session_id)
+    await delete_session_from_db(clean_id(session_id))
 
 
 @app.put("/title")
 async def update_session_title(data: TitleUpdate = Body(...)):
-    await update_session_title_in_db(data.session_id, data.new_title)
+    await update_session_title_in_db(clean_id(data.session_id), data.new_title)

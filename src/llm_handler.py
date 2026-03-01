@@ -1,10 +1,11 @@
-from litellm import completion
+from litellm import acompletion
 from openai import OpenAIError
 
 from pathlib import Path
 
 project_root = Path(__file__).resolve().parent.parent
 LANGUAGE_BUDDY_PROMPT_PATH = project_root / "src" / "system_prompts" / "language_buddy" / "language_buddy.txt"
+CHAT_NAME_SUGGESTION_PROMPT_PATH = project_root / "src" / "system_prompts" / "chat_name_suggestion" / "chat_name_suggestion.txt"
 
 try:
     with open(LANGUAGE_BUDDY_PROMPT_PATH, "r", encoding="utf-8") as f:
@@ -12,14 +13,20 @@ try:
 except FileNotFoundError:
     print(f"File not found: {LANGUAGE_BUDDY_PROMPT_PATH}")
 
-def get_bedrock_response(
+try:
+    with open(CHAT_NAME_SUGGESTION_PROMPT_PATH, "r", encoding="utf-8") as f:
+        CHAT_NAME_SUGGESTION_PROMPT = f.read()
+except FileNotFoundError:
+    print(f"File not found: {CHAT_NAME_SUGGESTION_PROMPT_PATH}")
+
+async def get_bedrock_response(
     prompt: str,
     model: str,
     previous_chat_history: list,
     settings: dict,
     temperature: float = 1,
     max_tokens: int = 500,
-) -> dict:
+) -> str:
     """
     Function to get responses from AWS Bedrock models using liteLLM
 
@@ -54,7 +61,43 @@ def get_bedrock_response(
     )
 
     try:
-        response = completion(
+        response = await acompletion(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        content = response.choices[0].message.content
+        return content
+    except OpenAIError as e:
+        print(f"Error calling Bedrock: {e}")
+        return f"Error: {str(e)}"
+
+async def get_chat_name_suggestion(
+    prompt: str,
+    model: str,
+    temperature: float = 1,
+    max_tokens: int = 500,
+) -> str:
+    """
+    Function to get a chat name suggestion from the model for a new chat session
+
+    Args:
+        prompt: The text prompt to send to the model, comes from the user's first message
+        model: The Bedrock model identifier (anthropic.claude-3-sonnet-20240229, amazon.titan-text-express-v1, etc.)
+        temperature: Controls randomness (0.0 to 1.0)
+        max_tokens: Maximum number of tokens to generate
+
+    Returns:
+        The suggested chat name
+    """
+    
+    messages = []
+    messages.append({"role": "system", "content": CHAT_NAME_SUGGESTION_PROMPT})
+    messages.append({"role": "user", "content": prompt})
+
+    try:
+        response = await acompletion(
             model=model,
             messages=messages,
             temperature=temperature,
