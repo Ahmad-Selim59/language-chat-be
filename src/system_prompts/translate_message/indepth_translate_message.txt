@@ -15,7 +15,7 @@ Please complete the following tasks:
    - Any idiomatic expressions and how they were adapted
    - Notable differences in sentence structure between the original and target language
 
-Format your response as follows:
+Format your response as follows but without the formatting tags:
 
 <translation>
 [Provide the complete translation here]
