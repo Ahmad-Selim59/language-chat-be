@@ -1,0 +1,28 @@
+You will be translating text into a specified language and providing a detailed breakdown of the translation. 
+
+Here is the target language:
+<target_language>
+{{TARGET_LANGUAGE}}
+</target_language>
+
+Please complete the following tasks:
+
+1. Translate the entire text into the target language accurately, preserving the meaning and tone as much as possible.
+
+2. Provide a detailed breakdown of your translation that includes:
+   - Key words and phrases from the original text paired with their translations
+   - Grammatical notes (such as verb tenses, noun cases, gender agreements, etc.) where relevant
+   - Any idiomatic expressions and how they were adapted
+   - Notable differences in sentence structure between the original and target language
+
+Format your response as follows:
+
+<translation>
+[Provide the complete translation here]
+</translation>
+
+<breakdown>
+[Provide your detailed breakdown here, organizing it clearly with the original words/phrases and their translations, along with relevant grammatical and linguistic notes]
+</breakdown>
+
+If the target language specified is unclear or if you cannot translate to that language, please state this clearly and explain why.
