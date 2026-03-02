@@ -1,7 +1,8 @@
-from fastapi import FastAPI, Body, Query, BackgroundTasks
+from fastapi import FastAPI, Body, Query, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.auth import get_current_user_id
 from src.llm_handler import get_bedrock_response, get_chat_name_suggestion, create_translation_for_message
 from src.config.env_var import LLM_MODEL_NAME
 from src.services import (
@@ -17,7 +18,6 @@ from src.services import (
     get_message_translation,
     save_message_translation,
 )
-from fastapi import HTTPException
 
 app = FastAPI()
 
@@ -44,7 +44,6 @@ class Settings(BaseModel):
 
 class ChatRequest(BaseModel):
     session_id: str
-    user_id: str
     user_message: str
     settings: Settings
 
@@ -69,8 +68,11 @@ async def suggest_and_set_chat_name(session_id: str, user_message: str):
 
 
 @app.post("/chat")
-async def send_message(req: ChatRequest, background_tasks: BackgroundTasks) -> dict:
-    clean_user_id = clean_id(req.user_id)
+async def send_message(
+    req: ChatRequest,
+    background_tasks: BackgroundTasks,
+    user_id: str = Depends(get_current_user_id),
+) -> dict:
     clean_session_id = clean_id(req.session_id)
     clean_user_message = req.user_message.strip()
 
@@ -78,7 +80,7 @@ async def send_message(req: ChatRequest, background_tasks: BackgroundTasks) -> d
     #     return "user, used system today already"
 
     previous_chat_history = await get_chat_history_from_db(
-        clean_user_id, clean_session_id
+        user_id, clean_session_id
     )
 
     settings_dict = {
@@ -98,7 +100,7 @@ async def send_message(req: ChatRequest, background_tasks: BackgroundTasks) -> d
         )
 
     await store_chat_in_db(
-        clean_user_id, clean_session_id, clean_user_message, llm_response
+        user_id, clean_session_id, clean_user_message, llm_response
     )
 
     # Suggest a name only for the first message in the background
@@ -113,45 +115,65 @@ async def send_message(req: ChatRequest, background_tasks: BackgroundTasks) -> d
 
 
 @app.get("/chat")
-async def get_chat_history(session_id: str, user_id: str):
-    return await get_chat_history_from_db(clean_id(user_id), clean_id(session_id))
+async def get_chat_history(
+    session_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    return await get_chat_history_from_db(user_id, clean_id(session_id))
 
 
 @app.get("/sessions")
-async def retrieve_all_sessions(user_id: str):
-    sessions = await get_sessions_from_db(clean_id(user_id))
+async def retrieve_all_sessions(user_id: str = Depends(get_current_user_id)):
+    sessions = await get_sessions_from_db(user_id)
     return sessions
 
 
 @app.delete("/chat")
-async def delete_chat(session_id: str = Query(...)):
-    await delete_session_from_db(clean_id(session_id))
+async def delete_chat(
+    session_id: str = Query(...),
+    user_id: str = Depends(get_current_user_id),
+):
+    clean_session_id = clean_id(session_id)
+    if not clean_session_id:
+        raise HTTPException(status_code=400, detail="session_id cannot be empty")
+        
+    await delete_session_from_db(clean_session_id, user_id)
 
 
 @app.put("/title")
-async def update_session_title(data: TitleUpdate = Body(...)):
-    await update_session_title_in_db(clean_id(data.session_id), data.new_title)
+async def update_session_title(
+    data: TitleUpdate = Body(...),
+    user_id: str = Depends(get_current_user_id),
+):
+    await update_session_title_in_db(clean_id(data.session_id), user_id, data.new_title)
+
 
 @app.get("/translate")
-async def translate_message(session_id: str, message_id: int, native_language: str):
+async def translate_message(
+    session_id: str,
+    message_id: int,
+    native_language: str,
+    user_id: str = Depends(get_current_user_id),
+):
     clean_session_id = clean_id(session_id)
+    if not clean_session_id:
+        raise HTTPException(status_code=400, detail="session_id cannot be empty")
     
-    existing_translation = await get_message_translation(clean_session_id, message_id, native_language)
+    existing_translation = await get_message_translation(clean_session_id, user_id, message_id, native_language)
     if existing_translation:
         return {"translation": existing_translation}
         
-    original_text = await get_message_text(clean_session_id, message_id)
+    original_text = await get_message_text(clean_session_id, user_id, message_id)
     if not original_text:
         raise HTTPException(status_code=404, detail="Message not found")
     
     translation = await create_translation_for_message(original_text, LLM_MODEL_NAME, native_language)
     
-    stored = await save_message_translation(clean_session_id, message_id, native_language, translation)
+    stored = await save_message_translation(clean_session_id, user_id, message_id, native_language, translation)
     
     if not stored:
-        # Race condition happened, another request might have generated it concurrently
-        # Let's try to fetch it again
-        existing_translation = await get_message_translation(clean_session_id, message_id, native_language)
+        # Race condition: another request already stored a translation, fetch and return it
+        existing_translation = await get_message_translation(clean_session_id, user_id, message_id, native_language)
         if existing_translation:
             return {"translation": existing_translation}
     

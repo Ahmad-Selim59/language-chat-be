@@ -13,6 +13,8 @@ litellm = "1.67.5"
 openai = "1.76.2"
 boto3 = "1.38.5"
 motor = "^3.7.0"
+pyjwt = {extras = ["cryptography"], version = "^2.11.0"}
+cryptography = "^46.0.5"
 
 [[tool.poetry.packages]]
 include = "src"

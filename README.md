@@ -40,6 +40,8 @@ env vars:
     AWS_SECRET_ACCESS_KEY
     AWS_REGION_NAME 
     LLM_MODEL_NAME 
+    SUPABASE_PROJECT_URI
+    SUPABASE_SECRET_KEY
 
 Poetry being used
 poetry run uvicorn src.main:app --reload

@@ -93,16 +93,16 @@ async def get_sessions_from_db(user_id: str) -> dict:
     return {"sessions": sessions}
 
 
-async def update_session_title_in_db(session_id, new_title):
+async def update_session_title_in_db(session_id, user_id, new_title):
     result = await CHAT_HISTORY_DB.update_one(
-        {"_id": session_id}, {"$set": {"title": new_title}}
+        {"_id": session_id, "user_id": user_id}, {"$set": {"title": new_title}}
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Session not found")
 
 
-async def delete_session_from_db(session_id):
-    result = await CHAT_HISTORY_DB.delete_one({"_id": session_id})
+async def delete_session_from_db(session_id, user_id):
+    result = await CHAT_HISTORY_DB.delete_one({"_id": session_id, "user_id": user_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -126,10 +126,11 @@ async def set_chat_name_in_db(session_id, chat_name):
     else:
         print(f"\n\nChat name suggestion skipped (title already exists): {session_id}")
 
-async def get_message_text(session_id: str, message_id: int) -> Optional[str]:
+async def get_message_text(session_id: str, user_id: str, message_id: int) -> Optional[str]:
     doc = await CHAT_HISTORY_DB.find_one(
         {
             "_id": session_id,
+            "user_id": user_id,
             "messages": {"$elemMatch": {"id": message_id}}
         },
         {"messages.$": 1}
@@ -139,10 +140,11 @@ async def get_message_text(session_id: str, message_id: int) -> Optional[str]:
         return str(content) if content else None
     return None
 
-async def get_message_translation(session_id: str, message_id: int, target_language: str) -> Optional[str]:
+async def get_message_translation(session_id: str, user_id: str, message_id: int, target_language: str) -> Optional[str]:
     doc = await CHAT_HISTORY_DB.find_one(
         {
             "_id": session_id,
+            "user_id": user_id,
             "messages": {"$elemMatch": {"id": message_id}}
         },
         {"messages.$": 1}
@@ -158,12 +160,13 @@ async def get_message_translation(session_id: str, message_id: int, target_langu
         
     return None
 
-async def save_message_translation(session_id: str, message_id: int, target_language: str, translation_text: str) -> bool:
+async def save_message_translation(session_id: str, user_id: str, message_id: int, target_language: str, translation_text: str) -> bool:
     # Conditionally update to prevent race conditions
     # This will only match if the translation.target_language field DOES NOT exist
     result = await CHAT_HISTORY_DB.update_one(
         {
             "_id": session_id,
+            "user_id": user_id,
             "messages.id": message_id,
             f"messages.translation.{target_language}": {"$exists": False}
         },
