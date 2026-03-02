@@ -6,7 +6,8 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 LANGUAGE_BUDDY_PROMPT_PATH = project_root / "src" / "system_prompts" / "language_buddy" / "language_buddy.txt"
 CHAT_NAME_SUGGESTION_PROMPT_PATH = project_root / "src" / "system_prompts" / "chat_name_suggestion" / "chat_name_suggestion.txt"
-TRANSLATE_MESSAGE_PROMPT_PATH = project_root / "src" / "system_prompts" / "translate_message" / "translate_message.txt"
+INDEPTH_TRANSLATE_MESSAGE_PROMPT_PATH = project_root / "src" / "system_prompts" / "translate_message" / "indepth_translate_message.txt"
+BASIC_TRANSLATE_MESSAGE_PROMPT_PATH = project_root / "src" / "system_prompts" / "translate_message" / "basic_translate_message.txt"
 
 try:
     with open(LANGUAGE_BUDDY_PROMPT_PATH, "r", encoding="utf-8") as f:
@@ -21,10 +22,17 @@ except FileNotFoundError:
     print(f"File not found: {CHAT_NAME_SUGGESTION_PROMPT_PATH}")
 
 try:
-    with open(TRANSLATE_MESSAGE_PROMPT_PATH, "r", encoding="utf-8") as f:
+    with open(INDEPTH_TRANSLATE_MESSAGE_PROMPT_PATH, "r", encoding="utf-8") as f:
         TRANSLATE_MESSAGE_PROMPT = f.read()
 except FileNotFoundError:
-    print(f"File not found: {TRANSLATE_MESSAGE_PROMPT_PATH}")
+    print(f"File not found: {INDEPTH_TRANSLATE_MESSAGE_PROMPT_PATH}")
+
+try:
+    with open(BASIC_TRANSLATE_MESSAGE_PROMPT_PATH, "r", encoding="utf-8") as f:
+        BASIC_TRANSLATE_MESSAGE_PROMPT = f.read()
+except FileNotFoundError:
+    print(f"File not found: {BASIC_TRANSLATE_MESSAGE_PROMPT_PATH}")
+
 
 async def get_bedrock_response(
     prompt: str,
@@ -135,7 +143,7 @@ async def create_translation_for_message(
     Returns:
         The translation of the message
     """
-    system_prompt = TRANSLATE_MESSAGE_PROMPT.replace("{{TARGET_LANGUAGE}}", native_language)
+    system_prompt = BASIC_TRANSLATE_MESSAGE_PROMPT.replace("{{TARGET_LANGUAGE}}", native_language)
 
     messages = []
     messages.append({"role": "system", "content": system_prompt})
