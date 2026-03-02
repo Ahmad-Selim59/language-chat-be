@@ -2,6 +2,8 @@ import datetime
 
 from fastapi import HTTPException
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import ReturnDocument
+from typing import Optional
 
 from src.config.env_var import MONGO_URI
 
@@ -24,22 +26,44 @@ async def store_chat_in_db(
 
     current_time = datetime.datetime.utcnow()
 
-    # Try to insert new session but if it already exists append messages instead
-    await CHAT_HISTORY_DB.update_one(
+    # Increment Counter Atomically
+    updated_chat = await CHAT_HISTORY_DB.find_one_and_update(
         {"_id": session_id},
         {
             "$setOnInsert": {"user_id": user_id},
             "$set": {"updated_at": current_time},
+            "$inc": {"message_counter": 1},
+        },
+        upsert=True,
+        return_document=ReturnDocument.AFTER,
+    )
+
+    counter = updated_chat.get("message_counter", 1)
+    assistant_message_id = counter
+
+    # Push Message Using That ID
+    await CHAT_HISTORY_DB.update_one(
+        {"_id": session_id},
+        {
             "$push": {
                 "messages": {
                     "$each": [
-                        {"role": "user", "content": user_message},
-                        {"role": "assistant", "content": llm_response},
+                        {
+                            "role": "user",
+                            "content": user_message,
+                            "created_at": current_time,
+                        },
+                        {
+                            "id": assistant_message_id,
+                            "role": "assistant",
+                            "content": llm_response,
+                            "translation": {}, 
+                            "created_at": current_time,
+                        },
                     ]
                 }
-            },
+            }
         },
-        upsert=True,
     )
 
 
@@ -101,3 +125,52 @@ async def set_chat_name_in_db(session_id, chat_name):
         print(f"\n\nChat name suggested and set: {session_id} -> {chat_name}")
     else:
         print(f"\n\nChat name suggestion skipped (title already exists): {session_id}")
+
+async def get_message_text(session_id: str, message_id: int) -> Optional[str]:
+    doc = await CHAT_HISTORY_DB.find_one(
+        {
+            "_id": session_id,
+            "messages": {"$elemMatch": {"id": message_id}}
+        },
+        {"messages.$": 1}
+    )
+    if doc and doc.get("messages"):
+        content = doc["messages"][0].get("content")
+        return str(content) if content else None
+    return None
+
+async def get_message_translation(session_id: str, message_id: int, target_language: str) -> Optional[str]:
+    doc = await CHAT_HISTORY_DB.find_one(
+        {
+            "_id": session_id,
+            "messages": {"$elemMatch": {"id": message_id}}
+        },
+        {"messages.$": 1}
+    )
+    if not doc or not doc.get("messages"):
+        return None
+        
+    message = doc["messages"][0]
+    
+    translation_dict = message.get("translation", {})
+    if isinstance(translation_dict, dict) and target_language in translation_dict:
+        return str(translation_dict[target_language])
+        
+    return None
+
+async def save_message_translation(session_id: str, message_id: int, target_language: str, translation_text: str) -> bool:
+    # Conditionally update to prevent race conditions
+    # This will only match if the translation.target_language field DOES NOT exist
+    result = await CHAT_HISTORY_DB.update_one(
+        {
+            "_id": session_id,
+            "messages.id": message_id,
+            f"messages.translation.{target_language}": {"$exists": False}
+        },
+        {
+            "$set": {
+                f"messages.$.translation.{target_language}": translation_text
+            }
+        }
+    )
+    return result.modified_count > 0

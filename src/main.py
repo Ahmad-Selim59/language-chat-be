@@ -2,7 +2,7 @@ from fastapi import FastAPI, Body, Query, BackgroundTasks
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.llm_handler import get_bedrock_response, get_chat_name_suggestion
+from src.llm_handler import get_bedrock_response, get_chat_name_suggestion, create_translation_for_message
 from src.config.env_var import LLM_MODEL_NAME
 from src.services import (
     store_chat_in_db,
@@ -13,7 +13,11 @@ from src.services import (
     delete_session_from_db,
     set_chat_name_in_db,
     clean_id,
+    get_message_text,
+    get_message_translation,
+    save_message_translation,
 )
+from fastapi import HTTPException
 
 app = FastAPI()
 
@@ -127,3 +131,28 @@ async def delete_chat(session_id: str = Query(...)):
 @app.put("/title")
 async def update_session_title(data: TitleUpdate = Body(...)):
     await update_session_title_in_db(clean_id(data.session_id), data.new_title)
+
+@app.get("/translate")
+async def translate_message(session_id: str, message_id: int, native_language: str):
+    clean_session_id = clean_id(session_id)
+    
+    existing_translation = await get_message_translation(clean_session_id, message_id, native_language)
+    if existing_translation:
+        return {"translation": existing_translation}
+        
+    original_text = await get_message_text(clean_session_id, message_id)
+    if not original_text:
+        raise HTTPException(status_code=404, detail="Message not found")
+    
+    translation = await create_translation_for_message(original_text, LLM_MODEL_NAME, native_language)
+    
+    stored = await save_message_translation(clean_session_id, message_id, native_language, translation)
+    
+    if not stored:
+        # Race condition happened, another request might have generated it concurrently
+        # Let's try to fetch it again
+        existing_translation = await get_message_translation(clean_session_id, message_id, native_language)
+        if existing_translation:
+            return {"translation": existing_translation}
+    
+    return {"translation": translation}
