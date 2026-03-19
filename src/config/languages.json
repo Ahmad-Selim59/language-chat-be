@@ -1,0 +1,28 @@
+[
+  { "name": "English", "code": "en-US" },
+  { "name": "Spanish", "code": "es-ES" },
+  { "name": "French", "code": "fr-FR" },
+  { "name": "German", "code": "de-DE" },
+  { "name": "Italian", "code": "it-IT" },
+  { "name": "Portuguese", "code": "pt-BR" },
+  { "name": "Dutch", "code": "nl-NL" },
+  { "name": "Russian", "code": "ru-RU" },
+  { "name": "Japanese", "code": "ja-JP" },
+  { "name": "Korean", "code": "ko-KR" },
+  { "name": "Chinese", "code": "zh-CN" },
+  {
+    "name": "Arabic",
+    "code": "ar-SA",
+    "dialects": [
+      { "name": "Standard (Saudi)", "code": "ar-SA" },
+      { "name": "Egyptian", "code": "ar-EG" },
+      { "name": "Modern Standard (Fusha)", "code": "ar-XA" }
+    ]
+  },
+  { "name": "Hindi", "code": "hi-IN" },
+  { "name": "Malay", "code": "ms-MY" },
+  { "name": "Indonesian", "code": "id-ID" },
+  { "name": "Vietnamese", "code": "vi-VN" },
+  { "name": "Thai", "code": "th-TH" },
+  { "name": "Turkish", "code": "tr-TR" }
+]

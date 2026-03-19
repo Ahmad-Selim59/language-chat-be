@@ -8,6 +8,21 @@ from typing import Optional
 from src.config.env_var import MONGO_URI, LLM_MODEL_NAME
 from src.gcp import transcribe_audio, synthesize_speech
 from src.llm_handler import get_bedrock_response, get_response_tone
+import json
+import os
+
+# Load language map once (Fail hard if not found)
+# Flatten it so we can easily map both top-level names AND dialect names
+LANG_MAP = {}
+with open(os.path.join(os.path.dirname(__file__), "config", "languages.json"), "r") as f:
+    langs_data = json.load(f)
+    for l in langs_data:
+        # Map primary language
+        LANG_MAP[l["name"].lower()] = l["code"]
+        # Map any dialects too
+        if "dialects" in l:
+            for d in l["dialects"]:
+                LANG_MAP[d["name"].lower()] = d["code"]
 
 MONGO_CLIENT = AsyncIOMotorClient(MONGO_URI)
 DATABASE = MONGO_CLIENT["chat_bot"]
@@ -181,40 +196,27 @@ async def save_message_translation(session_id: str, user_id: str, message_id: in
     return result.modified_count > 0
 
 def _map_to_bcp47(lang_name: str) -> str:
-    mapping = {
-        "english": "en-US",
-        "spanish": "es-ES",
-        "french": "fr-FR",
-        "german": "de-DE",
-        "italian": "it-IT",
-        "portuguese": "pt-BR",
-        "dutch": "nl-NL",
-        "russian": "ru-RU",
-        "japanese": "ja-JP",
-        "korean": "ko-KR",
-        "chinese": "zh-CN",
-        "arabic": "ar-SA",
-        "hindi": "hi-IN",
-        "malay": "ms-MY",
-        "indonesian": "id-ID",
-        "vietnamese": "vi-VN",
-        "thai": "th-TH",
-        "turkish": "tr-TR",
-    }
-    return mapping.get(str(lang_name).lower(), "en-US")
+    return LANG_MAP.get(str(lang_name).lower(), "en-US")
 
 async def process_oral_chat_message(audio_base64: str, history: list, settings: dict, websocket=None) -> dict:
     """Processes a single audio message: STT -> LLM -> Tone -> TTS. Streams intermediate results to websocket."""
-    native_lang_name = settings.get("nativeLanguage", "English")
     target_lang_name = settings.get("targetLanguage", "English")
+    # Dialect name takes precedence if provided, otherwise use the target language name.
+    effective_target_lang = settings.get("dialect") or target_lang_name
+    effective_native_lang = settings.get("nativeLanguage", "English")
+
+    native_bcp47 = _map_to_bcp47(effective_native_lang)
+    target_bcp47 = _map_to_bcp47(effective_target_lang)
     
-    native_bcp47 = _map_to_bcp47(native_lang_name)
-    target_bcp47 = _map_to_bcp47(target_lang_name)
-    
+    # Restored multi-language detection.
+    # Google will prioritize target_bcp47 but allow native fallback if the sound matches better.
+    alt_langs = [native_bcp47] if native_bcp47 != target_bcp47 else None
+
     # We force the recognizer strictly on the target language to prevent it from matching English words blindly.
     user_text = await transcribe_audio(
         audio_base64, 
-        language_code=target_bcp47
+        language_code=target_bcp47,
+        alternative_language_codes=alt_langs
     )
     
     if not user_text:
