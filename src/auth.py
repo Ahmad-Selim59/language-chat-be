@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, Header
+from fastapi import Depends, HTTPException, Header, WebSocket, WebSocketDisconnect
 from jwt import PyJWKClient
 import jwt
 
@@ -53,3 +53,37 @@ def get_current_user_id(authorization: str | None = Header(None, alias="Authoriz
         raise HTTPException(status_code=401, detail="Token is missing 'sub' claim")
 
     return user_id
+
+async def authenticate_oral_chat(websocket: WebSocket) -> str | None:
+    """Handles the initial authentication message over the WebSocket."""
+    try:
+        auth_msg = await websocket.receive_json()
+        if auth_msg.get("type") != "auth" or not auth_msg.get("token"):
+            await websocket.close(code=1008, reason="Missing authentication token")
+            return None
+            
+        token = auth_msg.get("token")
+        payload = _decode_token(token)
+        user_id = payload.get("sub")
+        
+        if not user_id:
+            await websocket.close(code=1008, reason="Invalid token")
+            return None
+        return user_id
+    except WebSocketDisconnect:
+        print("WebSocket disconnected during auth.")
+        return None
+    except HTTPException as e:
+        print(f"WebSocket auth failed (HTTPException): {e.detail}")
+        try:
+            await websocket.close(code=1008, reason=str(e.detail))
+        except RuntimeError:
+            pass
+        return None
+    except Exception as e:
+        print(f"WebSocket auth failed: {e}")
+        try:
+            await websocket.close(code=1008, reason="Authentication failed")
+        except RuntimeError:
+            pass
+        return None

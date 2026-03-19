@@ -1,9 +1,10 @@
-from fastapi import FastAPI, Body, Query, BackgroundTasks, Depends, HTTPException
+from fastapi import FastAPI, Body, Query, BackgroundTasks, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.auth import get_current_user_id
-from src.llm_handler import get_bedrock_response, get_chat_name_suggestion, create_translation_for_message
+from src.auth import get_current_user_id, authenticate_oral_chat
+from src.llm_handler import get_bedrock_response, get_chat_name_suggestion, create_translation_for_message, get_response_tone
+from src.gcp import transcribe_audio, synthesize_speech
 from src.config.env_var import LLM_MODEL_NAME
 from src.services import (
     store_chat_in_db,
@@ -17,6 +18,7 @@ from src.services import (
     get_message_text,
     get_message_translation,
     save_message_translation,
+    process_oral_chat_message,
 )
 
 app = FastAPI()
@@ -178,3 +180,36 @@ async def translate_message(
             return {"translation": existing_translation}
     
     return {"translation": translation}
+
+
+@app.websocket("/ws/oral-chat/{session_id}")
+async def oral_chat_endpoint(websocket: WebSocket, session_id: str):
+    await websocket.accept()
+    
+    user_id = await authenticate_oral_chat(websocket)
+    if not user_id:
+        return
+
+    # 2. Main oral chat loop
+    clean_sess_id = clean_id(session_id)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            audio_base64 = data.get("audio_base64")
+            history = data.get("history", [])
+            settings = data.get("settings", {})
+            
+            if not audio_base64:
+                await websocket.send_json({"error": "No audio_base64 provided"})
+                continue
+            
+            await process_oral_chat_message(audio_base64, history, settings, websocket=websocket)
+            
+    except WebSocketDisconnect:
+        print(f"Client disconnected from oral-chat API (session: {clean_sess_id})")
+    except Exception as e:
+        print(f"Unexpected error in oral-chat websocket: {e}")
+        try:
+            await websocket.close(code=1011)
+        except:
+            pass

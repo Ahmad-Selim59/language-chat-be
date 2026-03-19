@@ -5,7 +5,9 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import ReturnDocument
 from typing import Optional
 
-from src.config.env_var import MONGO_URI
+from src.config.env_var import MONGO_URI, LLM_MODEL_NAME
+from src.gcp import transcribe_audio, synthesize_speech
+from src.llm_handler import get_bedrock_response, get_response_tone
 
 MONGO_CLIENT = AsyncIOMotorClient(MONGO_URI)
 DATABASE = MONGO_CLIENT["chat_bot"]
@@ -177,3 +179,74 @@ async def save_message_translation(session_id: str, user_id: str, message_id: in
         }
     )
     return result.modified_count > 0
+
+def _map_to_bcp47(lang_name: str) -> str:
+    mapping = {
+        "english": "en-US",
+        "spanish": "es-ES",
+        "french": "fr-FR",
+        "german": "de-DE",
+        "italian": "it-IT",
+        "portuguese": "pt-BR",
+        "dutch": "nl-NL",
+        "russian": "ru-RU",
+        "japanese": "ja-JP",
+        "korean": "ko-KR",
+        "chinese": "zh-CN",
+        "arabic": "ar-SA",
+        "hindi": "hi-IN",
+        "malay": "ms-MY",
+        "indonesian": "id-ID",
+        "vietnamese": "vi-VN",
+        "thai": "th-TH",
+        "turkish": "tr-TR",
+    }
+    return mapping.get(str(lang_name).lower(), "en-US")
+
+async def process_oral_chat_message(audio_base64: str, history: list, settings: dict, websocket=None) -> dict:
+    """Processes a single audio message: STT -> LLM -> Tone -> TTS. Streams intermediate results to websocket."""
+    native_lang_name = settings.get("nativeLanguage", "English")
+    target_lang_name = settings.get("targetLanguage", "English")
+    
+    native_bcp47 = _map_to_bcp47(native_lang_name)
+    target_bcp47 = _map_to_bcp47(target_lang_name)
+    
+    # We force the recognizer strictly on the target language to prevent it from matching English words blindly.
+    user_text = await transcribe_audio(
+        audio_base64, 
+        language_code=target_bcp47
+    )
+    
+    if not user_text:
+        if websocket:
+            await websocket.send_json({"error": "Failed to transcribe audio"})
+        return {}
+        
+    if websocket:
+        await websocket.send_json({
+            "type": "user_transcription",
+            "content": user_text
+        })
+        
+    llm_response = await get_bedrock_response(
+        prompt=user_text,
+        model=LLM_MODEL_NAME,
+        previous_chat_history=history,
+        settings=settings
+    )
+    
+    tone_prompt = await get_response_tone(llm_response, LLM_MODEL_NAME)
+    
+    # AI character should reply in the target language (e.g., Malay)
+    ai_audio_base64 = await synthesize_speech(llm_response, tone_prompt, language_code=target_bcp47)
+    
+    result = {
+        "type": "assistant_response",
+        "content": llm_response,
+        "audio": ai_audio_base64
+    }
+    
+    if websocket:
+        await websocket.send_json(result)
+        
+    return result

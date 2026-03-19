@@ -15,12 +15,15 @@ boto3 = "1.38.5"
 motor = "^3.7.0"
 pyjwt = {extras = ["cryptography"], version = "^2.11.0"}
 cryptography = "^46.0.5"
+httpx = "^0.28.1"
+google-auth = "^2.49.1"
 
 [[tool.poetry.packages]]
 include = "src"
 
 [tool.poetry.group.dev.dependencies]
 black = "^25.1.0"
+websockets = "^16.0"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
