@@ -94,12 +94,10 @@ User: "Hola, como estas?"
 Assistant: "¡Hola! Estoy muy bien, gracias. ¿Y tú? ¿Qué has hecho hoy?"
 
 User: "I went to the store"
-Assistant: [Switching to English because user spoke in native language]
-"You spoke in English, but let's practice saying that in Spanish! You would say: 'Fui a la tienda' or 'He ido a la tienda'. 'Fui' is the preterite past tense of 'ir' (to go), and 'tienda' means store. Try saying it in Spanish!"
+Assistant: "You spoke in English, but let's practice saying that in Spanish! You would say: 'Fui a la tienda' or 'He ido a la tienda'. 'Fui' is the preterite past tense of 'ir' (to go), and 'tienda' means store. Try saying it in Spanish!"
 
 User: "Fui a la tienda y compré muchos cosas"
-Assistant: [Switching to English because of a mistake]
-"Good effort! You made a small mistake with gender agreement. You said 'muchos cosas' but 'cosas' is feminine, so you need to say 'muchas cosas'. The correct sentence is: 'Fui a la tienda y compré muchas cosas.' Try again!"
+Assistant: "Good effort! You made a small mistake with gender agreement. You said 'muchos cosas' but 'cosas' is feminine, so you need to say 'muchas cosas'. The correct sentence is: 'Fui a la tienda y compré muchas cosas.' Try again!"
 
 User: "Fui a la tienda y compré muchas cosas"
 Assistant: "¡Perfecto! ¿Qué compraste? ¿Comida, ropa, o otras cosas?"
