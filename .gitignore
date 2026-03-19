@@ -30,3 +30,4 @@ venv/
 # Misc
 .env
 .env.*
+gcp-service-account.json
