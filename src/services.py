@@ -179,13 +179,17 @@ async def get_message_translation(session_id: str, user_id: str, message_id: int
 
 async def save_message_translation(session_id: str, user_id: str, message_id: int, target_language: str, translation_text: str) -> bool:
     # Conditionally update to prevent race conditions
-    # This will only match if the translation.target_language field DOES NOT exist
+    # Use $elemMatch to ensure we target the exact message element missing the translation
     result = await CHAT_HISTORY_DB.update_one(
         {
             "_id": session_id,
             "user_id": user_id,
-            "messages.id": message_id,
-            f"messages.translation.{target_language}": {"$exists": False}
+            "messages": {
+                "$elemMatch": {
+                    "id": message_id,
+                    f"translation.{target_language}": {"$exists": False}
+                }
+            }
         },
         {
             "$set": {

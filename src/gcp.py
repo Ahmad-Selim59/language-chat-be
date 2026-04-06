@@ -35,8 +35,8 @@ async def transcribe_audio(audio_base64: str, language_code: str = "en-US", alte
     url = "https://speech.googleapis.com/v1/speech:recognize"
     
     config: dict[str, Any] = {
-        "encoding": "WEBM_OPUS",
-        "sampleRateHertz": 48000,
+        "encoding": "LINEAR16",
+        "sampleRateHertz": 16000,
         "languageCode": language_code,
         "enableAutomaticPunctuation": True,
         "model": "default"

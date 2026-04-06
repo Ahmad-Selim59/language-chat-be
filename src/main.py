@@ -160,7 +160,7 @@ async def translate_message(
     clean_session_id = clean_id(session_id)
     if not clean_session_id:
         raise HTTPException(status_code=400, detail="session_id cannot be empty")
-    
+
     existing_translation = await get_message_translation(clean_session_id, user_id, message_id, native_language)
     if existing_translation:
         return {"translation": existing_translation}
