@@ -1,5 +1,6 @@
 import os
 import httpx
+import json
 from google.oauth2 import service_account
 from google.auth.transport.requests import Request
 import asyncio
@@ -9,22 +10,27 @@ from typing import Any
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GCP_SA_PATH = os.path.join(ROOT_DIR, "gcp-service-account.json")
 
-_gcp_credentials = None
+GCP_CREDENTIALS = None
 
-def get_gcp_credentials():
-    global _gcp_credentials
-    if _gcp_credentials is None:
-        if not os.path.exists(GCP_SA_PATH):
-            raise FileNotFoundError(f"GCP service account JSON not found at {GCP_SA_PATH}")
-        _gcp_credentials = service_account.Credentials.from_service_account_file(
+try:
+    if not os.path.exists(GCP_SA_PATH):
+        print(f"WARNING: GCP service account JSON not found at {GCP_SA_PATH}. STT/TTS will fail.")
+    else:
+        GCP_CREDENTIALS = service_account.Credentials.from_service_account_file(
             GCP_SA_PATH,
             scopes=["https://www.googleapis.com/auth/cloud-platform"]
         )
+except Exception as e:
+    print(f"ERROR: Failed to load GCP credentials: {e}")
+
+def get_gcp_credentials():
+    if not GCP_CREDENTIALS:
+        raise RuntimeError("GCP credentials not initialized.")
     
-    if not _gcp_credentials.valid:
-        _gcp_credentials.refresh(Request())
+    if not GCP_CREDENTIALS.valid:
+        GCP_CREDENTIALS.refresh(Request())
         
-    return _gcp_credentials
+    return GCP_CREDENTIALS
 
 async def transcribe_audio(audio_base64: str, language_code: str = "en-US", alternative_language_codes: list | None = None) -> str:
     """
@@ -57,7 +63,7 @@ async def transcribe_audio(audio_base64: str, language_code: str = "en-US", alte
         "Content-Type": "application/json"
     }
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(url, json=payload, headers=headers)
         response.raise_for_status()
         data = response.json()
@@ -79,12 +85,16 @@ async def synthesize_speech(text: str, tone_prompt: str, language_code: str = "e
     url = "https://texttospeech.googleapis.com/v1/text:synthesize"
     
     # Gemini 2.5 voice has a strict 512 byte limit for text + prompt combined
+    # Note: Characters in Arabic/Asian scripts take multiple bytes, so we MUST slice by bytes, not chars.
     clean_prompt = ""
+    MAX_PROMPT_BYTES = 50
+    MAX_TEXT_BYTES = 400
+    
     if tone_prompt and tone_prompt.strip():
-        clean_prompt = tone_prompt.strip()[:40]  # Hard limit summary instructions
-        text = text[:400] # allocate the rest to core text
+        clean_prompt = tone_prompt.strip().encode("utf-8")[:MAX_PROMPT_BYTES].decode("utf-8", "ignore")
+        text = text.encode("utf-8")[:MAX_TEXT_BYTES].decode("utf-8", "ignore")
     else:
-        text = text[:450]
+        text = text.encode("utf-8")[:450].decode("utf-8", "ignore")
 
     payload: dict[str, Any] = {
         "audioConfig": {
@@ -110,7 +120,7 @@ async def synthesize_speech(text: str, tone_prompt: str, language_code: str = "e
         "Content-Type": "application/json"
     }
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(url, json=payload, headers=headers)
         if response.status_code != 200:
             print(f"DEBUG TTS ERROR: {response.text}")
